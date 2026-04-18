@@ -1,15 +1,3 @@
-"""
-preprocessing/preprocess.py
-
-Merges all raw Reddit forum XLSX files, cleans text data,
-detects language, and exports a clean CSV ready for NLP analysis.
-
-Usage:
-    python src/preprocessing/preprocess.py \
-        --input_dir data/raw/forums_reddit \
-        --output data/processed/reddit_clean.csv
-"""
-
 import argparse
 import logging
 import re
@@ -17,12 +5,29 @@ import unicodedata
 from pathlib import Path
 
 import pandas as pd
+import spacy
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 log = logging.getLogger(__name__)
+
+# ── spaCy models ──────────────────────────────────────────────────────────────
+
+def load_spacy_models() -> dict:
+    """Load spaCy models for EN and FR. Raises clear error if not installed."""
+    models = {}
+    for lang, model_name in [("en", "en_core_web_sm"), ("fr", "fr_core_news_sm")]:
+        try:
+            models[lang] = spacy.load(model_name, disable=["parser", "ner"])
+            log.info(f"Loaded spaCy model: {model_name}")
+        except OSError:
+            raise OSError(
+                f"spaCy model '{model_name}' not found.\n"
+                f"Install it with: python -m spacy download {model_name}"
+            )
+    return models
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,6 +58,8 @@ KEEP_COLS = [
     "texte",
     "texte_clean",
     "texte_source",   # titre | texte | titre+texte
+    "tokens",         # list of tokens (no stopwords, no punct)
+    "texte_lemmatise", # lemmatized text as string
     "categorie",
     "nb_commentaires",
     "nb_reactions",
@@ -61,6 +68,7 @@ KEEP_COLS = [
     "mois_post",
     "langue",
     "longueur_texte_clean",
+    "nb_tokens",
     "is_empty",
 ]
 
@@ -93,6 +101,43 @@ def clean_text(text: str) -> str:
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
 
+def tokenize_lemmatize(df: pd.DataFrame, nlp_models: dict) -> pd.DataFrame:
+    """
+    Tokenize and lemmatize texts using spaCy.
+    - Removes stopwords, punctuation, numbers, and single characters
+    - Lowercases all tokens
+    - Produces 'tokens' (list) and 'texte_lemmatise' (string) columns
+    """
+    log.info("Tokenizing and lemmatizing texts...")
+
+    def process(text: str, lang: str) -> tuple[list[str], str]:
+        if not text or lang not in nlp_models:
+            return [], ""
+        nlp = nlp_models[lang]
+        doc = nlp(text)
+        tokens = [
+            token.lemma_.lower()
+            for token in doc
+            if not token.is_stop
+            and not token.is_punct
+            and not token.like_num
+            and not token.is_space
+            and len(token.lemma_) > 1
+        ]
+        return tokens, " ".join(tokens)
+
+    results = df.apply(
+        lambda row: process(row["texte_clean"], row["langue"]), axis=1
+    )
+    df["tokens"] = results.apply(lambda x: x[0])
+    df["texte_lemmatise"] = results.apply(lambda x: x[1])
+    df["nb_tokens"] = df["tokens"].apply(len)
+
+    log.info(f"Average tokens per post: {df['nb_tokens'].mean():.1f}")
+    log.info(f"Posts with 0 tokens: {(df['nb_tokens'] == 0).sum()}")
+    return df
+
+
 def load_and_merge(input_dir: Path) -> pd.DataFrame:
     """Load all XLSX files and merge into a single DataFrame."""
     dfs = []
@@ -114,7 +159,7 @@ def load_and_merge(input_dir: Path) -> pd.DataFrame:
     return merged
 
 
-def clean(df: pd.DataFrame) -> pd.DataFrame:
+def clean(df: pd.DataFrame, nlp_models: dict) -> pd.DataFrame:
     """Apply all cleaning steps and derive new columns."""
 
     # 1. Drop exact duplicate posts
@@ -152,6 +197,9 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     # 8. Parse date column
     df["date_heure_post"] = pd.to_datetime(df["date_heure_post"], errors="coerce")
 
+    # 9. Tokenisation + lemmatisation
+    df = tokenize_lemmatize(df, nlp_models)
+
     log.info(f"Empty texts after fallback: {(df['texte_clean'] == '').sum()}")
     log.info(f"Language distribution:\n{df['langue'].value_counts().to_string()}")
     log.info(f"Forum distribution:\n{df['forum'].value_counts().to_string()}")
@@ -186,8 +234,9 @@ def main():
     args = parser.parse_args()
 
     log.info("=== Starting preprocessing pipeline ===")
+    nlp_models = load_spacy_models()
     df = load_and_merge(args.input_dir)
-    df = clean(df)
+    df = clean(df, nlp_models)
     export(df, args.output)
     log.info("=== Done ===")
 

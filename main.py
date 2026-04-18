@@ -20,14 +20,14 @@ log = logging.getLogger(__name__)
 
 
 def run_preprocessing(input_dir: Path, output_dir: Path):
-    from src.preprocessing.preprocess import load_and_merge, clean, export
+    from src.preprocessing.preprocess import load_and_merge, clean, export, load_spacy_models
     log.info("── Step 1: Preprocessing ──")
+    nlp_models = load_spacy_models()
     df = load_and_merge(input_dir)
-    df = clean(df)
+    df = clean(df, nlp_models)
     output_path = output_dir / "reddit_clean.csv"
     export(df, output_path)
     return output_path
-
 
 def run_nlp(input_path: Path, output_dir: Path):
     # TODO: implement NLP analysis (sentiment, topic modeling, etc.)
