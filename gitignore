@@ -1,0 +1,56 @@
+
+data/processed/
+data/cache/
+data/interim/
+*.csv
+*.xlsx
+*.xls
+*.json
+
+
+# Python cache
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+dist/
+build/
+*.egg
+
+
+# Environnements virtuels
+
+.env
+.env.*
+venv/
+.venv/
+env/
+ENV/
+
+
+# macOS
+
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# IDEs
+
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs & outputs temporaires
+
+logs/
+*.log
+*.out
+*.err
+
+# ========================
+
