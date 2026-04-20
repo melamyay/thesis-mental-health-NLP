@@ -4,8 +4,10 @@ import re
 import unicodedata
 from pathlib import Path
 
+import emoji
 import pandas as pd
 import spacy
+from langdetect import detect, LangDetectException
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +51,21 @@ FORUM_LANG = {
     "Students":  "en",
 }
 
+
+EN_CONTRACTIONS = {
+    r"won't":  "will not",
+    r"can't":  "cannot",
+    r"n't":    " not",
+    r"'re":    " are",
+    r"'s":     " is",
+    r"'d":     " would",
+    r"'ll":    " will",
+    r"'ve":    " have",
+    r"'m":     " am",
+} # Non Exhaustive 
+
+MIN_TOKENS = 5
+
 # Columns to keep in the final output
 KEEP_COLS = [
     "id_post",
@@ -83,13 +100,21 @@ def _remove_reddit_artifacts(text: str) -> str:
     text = re.sub(r"\br/\w+", "", text)
     return text
 
+def _remove_emojis(text):
+    return emoji.replace_emoji(text, replace="")
+
 def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 def _normalize_unicode(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
-def clean_text(text: str) -> str:
+def _expand_contractions(text):
+    for pattern, replacement in EN_CONTRACTIONS.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+def clean_text(text: str, lang="en") -> str:
     """Full cleaning pipeline for a single text string."""
     if not isinstance(text, str) or not text.strip():
         return ""
@@ -97,7 +122,21 @@ def clean_text(text: str) -> str:
     text = _remove_urls(text)
     text = _remove_reddit_artifacts(text)
     text = _normalize_whitespace(text)
+    text = _remove_emojis(text)
+    if lang == "en":
+        text = _expand_contractions(text) 
     return text
+
+# ── Language detection ────────────────────────────────────────────────────────
+
+def detect_language(text):
+    if not text or len(text.split()) < 5:
+        return "unknown"
+    try:
+        lang = detect(text)
+        return lang if lang in ("en", "fr") else "other"
+    except LangDetectException:
+        return "unknown"
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
 
@@ -197,8 +236,26 @@ def clean(df: pd.DataFrame, nlp_models: dict) -> pd.DataFrame:
     # 8. Parse date column
     df["date_heure_post"] = pd.to_datetime(df["date_heure_post"], errors="coerce")
 
-    # 9. Tokenisation + lemmatisation
+    # 9. Auto language detection + conflict flag
+    log.info("Detecting languages automatically...")
+    df["langue_detectee"] = df["texte_clean"].apply(detect_language)
+    df["langue_conflit"] = (
+        (df["langue_detectee"] != "unknown") &
+        (df["langue_detectee"] != df["langue"])
+    )
+    conflicts = df["langue_conflit"].sum()
+    log.info(f"Language conflicts detected: {conflicts}")
+    if conflicts > 0:
+        df.loc[df["langue_conflit"], "langue"] = df.loc[df["langue_conflit"], "langue_detectee"]
+        log.info(f"Updated langue for {conflicts} conflicting posts")
+
+    # 1O. Tokenisation + lemmatisation
     df = tokenize_lemmatize(df, nlp_models)
+
+    # 11. Flag too short posts
+    df["is_too_short"] = df["nb_tokens"] < MIN_TOKENS
+    log.info(f"Posts with fewer than {MIN_TOKENS} tokens: {df['is_too_short'].sum()}")
+
 
     log.info(f"Empty texts after fallback: {(df['texte_clean'] == '').sum()}")
     log.info(f"Language distribution:\n{df['langue'].value_counts().to_string()}")
