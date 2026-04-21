@@ -57,11 +57,24 @@ EN_CONTRACTIONS = {
     r"can't":  "cannot",
     r"n't":    " not",
     r"'re":    " are",
+    r"shan't":      "shall not",
+
     r"'s":     " is",
     r"'d":     " would",
     r"'ll":    " will",
     r"'ve":    " have",
     r"'m":     " am",
+    r"'cause":      "because",
+    r"y'all":       "you all",
+    r"gonna":       "going to",
+    r"wanna":       "want to",
+    r"gotta":       "got to",
+    r"kinda":       "kind of",
+    r"sorta":       "sort of",
+    r"dunno":       "do not know",
+    r"lemme":       "let me",
+    r"gimme":       "give me",
+    r"tryna":       "trying to",
 } # Non Exhaustive 
 
 MIN_TOKENS = 5
@@ -84,9 +97,12 @@ KEEP_COLS = [
     "annee_post",
     "mois_post",
     "langue",
+    "langue_detectee",
+    "langue_conflit",
     "longueur_texte_clean",
     "nb_tokens",
     "is_empty",
+    "is_too_short"
 ]
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -233,8 +249,10 @@ def clean(df: pd.DataFrame, nlp_models: dict) -> pd.DataFrame:
     # 7. Normalize categorie (strip whitespace)
     df["categorie"] = df["categorie"].str.strip()
 
-    # 8. Parse date column
+    # 8. Parse date column + extract year/month
     df["date_heure_post"] = pd.to_datetime(df["date_heure_post"], errors="coerce")
+    df["annee_post"] = df["date_heure_post"].dt.year
+    df["mois_post"] = df["date_heure_post"].dt.month
 
     # 9. Auto language detection + conflict flag
     log.info("Detecting languages automatically...")
