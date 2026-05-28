@@ -149,6 +149,7 @@ python src/visualization/graph.py
 
 ##  Pipeline
 
+```
 Raw XLSX files (forums_reddit*, auto-detected)
         ↓
 Preprocessing
