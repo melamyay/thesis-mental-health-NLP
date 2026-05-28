@@ -193,24 +193,51 @@ def tokenize_lemmatize(df: pd.DataFrame, nlp_models: dict) -> pd.DataFrame:
     return df
 
 
-def load_and_merge(input_dir: Path) -> pd.DataFrame:
-    """Load all XLSX files and merge into a single DataFrame."""
+def load_and_merge(raw_dir: Path) -> pd.DataFrame:
+    """
+    Détecte automatiquement tous les dossiers forums_reddit* dans data/raw/
+    et charge tous les fichiers XLSX trouvés.
+    Déduplique par id_post à la fin.
+    """
+    raw_base = raw_dir  # data/raw/"""
+   
+    reddit_dirs = sorted([
+        d for d in raw_base.iterdir()
+        if d.is_dir() and d.name.startswith("forums_reddit")
+    ])
+
+    if not reddit_dirs:
+        raise FileNotFoundError(f"Aucun dossier forums_reddit* trouvé dans {raw_base}")
+
+    log.info(f"Found {len(reddit_dirs)} reddit folder(s): {[d.name for d in reddit_dirs]}")
+
     dfs = []
-    for filename in RAW_FILES:
-        path = input_dir / filename
-        # Support filenames with numeric prefix (e.g. 177649_posts_of_college_new.xlsx)
-        if not path.exists():
-            matches = list(input_dir.glob(f"*{filename}"))
-            if not matches:
-                log.warning(f"File not found, skipping: {filename}")
-                continue
-            path = matches[0]
-        df = pd.read_excel(path)
-        log.info(f"Loaded {path.name}: {len(df)} rows")
-        dfs.append(df)
+    for folder in reddit_dirs:
+        xlsx_files = list(folder.glob("*.xlsx"))
+        if not xlsx_files:
+            log.warning(f"No XLSX files in {folder.name}, skipping")
+            continue
+        for path in sorted(xlsx_files):
+            try:
+                df = pd.read_excel(path)
+                df["_source_folder"] = folder.name  # traçabilité
+                log.info(f"  Loaded {folder.name}/{path.name}: {len(df)} rows")
+                dfs.append(df)
+            except Exception as e:
+                log.warning(f"  Could not load {path}: {e}")
+
+    if not dfs:
+        raise ValueError("Aucun fichier XLSX chargé.")
 
     merged = pd.concat(dfs, ignore_index=True)
-    log.info(f"Total rows after merge: {len(merged)}")
+    log.info(f"Total rows after dedup: {len(merged)}")
+
+    # Dédupliquer 
+    before = len(merged)
+    merged = merged.drop_duplicates(subset="id_post", keep="first")
+    log.info(f"Removed {before - len(merged)} duplicates across folders")
+    log.info(f"Total rows after dedup: {len(merged)}")
+    
     return merged
 
 
@@ -297,8 +324,8 @@ def main():
     parser.add_argument(
         "--input_dir",
         type=Path,
-        default=Path("data/raw/forums_reddit"),
-        help="Directory containing raw XLSX files"
+        default=Path("data/raw"),
+        help="Dossier contenant les dossiers forums_reddit* (scannés automatiquement)"
     )
     parser.add_argument(
         "--output",
