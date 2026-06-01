@@ -4,6 +4,7 @@ NLP pipeline for analyzing student mental health from online forum data.
 
 > Master's thesis — ILIS UFR3S — PROMO 2026
 
+**Live Dashboard → [mental-health-nlp.streamlit.app](https://mental-health-nlp.streamlit.app/)**
 ---
 
 ## Objective
@@ -23,7 +24,7 @@ thesis-mental-health-NLP/
 │   ├── raw/                        # Raw collected data
 │   │   ├── forums_reddit/          # First scraping batch
 │   │   └── forums_reddit2/         # Second scraping batch (auto-detected)
-│   │   └── forums_reddit*/         # ** scraping batch 
+│   │   └── forums_reddit*/         # Additional scraping batch 
 │   ├── processed/                  # Cleaned and enriched data
 │   │   ├── reddit_clean.csv        # After preprocessing
 │   │   ├── reddit_sentiment.csv    # + sentiment scores
@@ -55,8 +56,10 @@ thesis-mental-health-NLP/
 ├── notebooks/                      # Exploration notebooks
 ├── config/                         # Configuration files
 ├── tests/                          # Unit tests
+├── dashboard.py                    # Streamlit interactive dashboard
 ├── main.py                         # Full pipeline orchestrator
-├── requirements.txt
+├── requirements.txt                # Dashboard dependencies (Streamlit Cloud)
+├── requirements_full.txt           # Full pipeline dependencies
 ├── .gitignore
 └── README.md
 ```
@@ -84,7 +87,7 @@ venv\Scripts\activate     # Windows
 ### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements_full.txt
 ```
 
 ### 4. Download spaCy models
@@ -145,6 +148,11 @@ python src/features/visualize.py
 python src/visualization/graph.py
 ```
 
+### Run the dashboard locally
+```bash
+streamlit run dashboard.py
+```
+
 ---
 
 ##  Pipeline
@@ -179,9 +187,25 @@ Temporal Aggregation
         ↓
 Visualization
   · Analytical figures (sentiment, emotions, distress over time)
-  · Co-occurrence graphs colored by dominant emotion (NetworkX + pyvis)
+  · Interactive dashboard -> https://mental-health-nlp.streamlit.app/
 ```
 
+---
+ 
+## Key Results
+ 
+| Indicator | Value |
+|---|---|
+| Corpus size | 10,412 posts |
+| Negative sentiment | 37.5% |
+| Mean score_cont EN | -0.25 |
+| Mean score_cont FR | -0.12 |
+| Dominant emotion | Anticipation (32.8%) |
+| Mean distress score | 0.068 |
+| Moderate distress posts | 743 (8.1%) |
+| Topics identified | 12 |
+| Peak distress period | Rentree EN (0.107) |
+ 
 ---
 
 ## Data Sources
@@ -211,6 +235,7 @@ Collection period: August 2025 → March 2026
 | Topic modelling | BERTopic, sentence-transformers |
 | Aggregation | pandas |
 | Visualization | matplotlib, NetworkX, pyvis |
+| Dashboard | Streamlit, Plotly |
  
 ---
 
@@ -218,6 +243,8 @@ Collection period: August 2025 → March 2026
 
 - **AMYAY Amal** — [@melamyay](https://github.com/melamyay)
 - **COKELAER Alexis** — [@alexiscokelaer](https://github.com/alexiscokelaer)
+
+**Supervisor:** Antoine LAMER
 
 ---
 
