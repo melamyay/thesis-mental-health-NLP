@@ -70,17 +70,17 @@ def aggregate_group(group: pd.DataFrame, labels: dict) -> dict:
     if "emotion_dominant" in group.columns:
         row["dominant_emotion"] = dominant(group["emotion_dominant"].dropna())
 
-    # Distress
-    if "distress_score" in group.columns:
-        s = group["distress_score"].dropna()
-        row["mean_distress"]      = safe_mean(s)
-        row["std_distress"]       = safe_std(s)
-        row["max_distress"]       = round(float(s.max()), 4) if len(s) > 0 else None
-        row["pct_high_distress"]  = round((s >= 0.4).sum() / len(group) * 100, 2)
+    # NAS (Negative Affect Score — PANAS, Watson et al. 1988)
+    if "nas_score" in group.columns:
+        s = group["nas_score"].dropna()
+        row["mean_nas"] = safe_mean(s)
+        row["std_nas"] = safe_std(s)
+        row["max_nas"] = round(float(s.max()), 4) if len(s) > 0 else None
+        row["pct_high_nas"] = round((group["nas_level"] == "high").sum() / len(group) * 100,
+                                    2) if "nas_level" in group.columns else None
 
-    if "distress_level" in group.columns:
-        row["dominant_distress_level"] = dominant(group["distress_level"].dropna())
-
+        if "nas_level" in group.columns:
+            row["dominant_nas_level"] = dominant(group["nas_level"].dropna())
     # Topics
     if "topic_label" in group.columns:
         row["dominant_topic"]    = dominant(group["topic_label"].dropna())

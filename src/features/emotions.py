@@ -170,23 +170,32 @@ def score_goemo_batch(texts: list, pipe) -> list:
     return results
 
 
-# ── Combined scores + distress index ─────────────────────────────────────────
+# ── Combined scores + Negative Affect Score ──────────────────────────────────
+
+NAS_NEGATIVE = ["fear", "sadness", "anger", "disgust"]
+NAS_POSITIVE = ["joy", "trust", "anticipation"]
+
 
 def compute_combined_scores(df: pd.DataFrame, has_bert: bool) -> pd.DataFrame:
     """
     combined_{e} = 0.30 * nrc_{e} + 0.70 * goemo_{e}  (si BERT dispo)
                  = nrc_{e}                              (sinon)
 
-    distress_score = (fear + sadness + 0.5*anger) / 2.5  → [0,1]
-    fear est le proxy anxiety (fear + nervousness dans go-emotions)
+    nas_score = NA / (NA + PA + ε)   → [0, 1]
+      NA = fear + sadness + anger + disgust
+      PA = joy + trust + anticipation
+    Inspiré du modèle bidimensionnel PANAS (Watson et al., 1988).
+    Surprise exclue (valence neutre, Russell 1980).
+
+    nas_level : terciles empiriques sur le corpus → low / moderate / high
     """
-    log.info("Computing combined scores and distress index...")
+    log.info("Computing combined scores and NAS (Negative Affect Score)...")
 
     for e in NRC_EMOTIONS:
         if has_bert:
             df[f"emotion_{e}"] = (
-                NRC_WEIGHT  * df[f"nrc_{e}"].fillna(0) +
-                BERT_WEIGHT * df[f"goemo_{e}"].fillna(0)
+                    NRC_WEIGHT * df[f"nrc_{e}"].fillna(0) +
+                    BERT_WEIGHT * df[f"goemo_{e}"].fillna(0)
             ).round(4)
         else:
             df[f"emotion_{e}"] = df[f"nrc_{e}"].fillna(0).round(4)
@@ -195,22 +204,21 @@ def compute_combined_scores(df: pd.DataFrame, has_bert: bool) -> pd.DataFrame:
     df["emotion_dominant"] = df[emotion_cols].idxmax(axis=1).str.replace("emotion_", "")
     df.loc[df[emotion_cols].max(axis=1) == 0, "emotion_dominant"] = None
 
-    df["distress_score"] = (
-        1.0 * df["emotion_fear"].fillna(0) +
-        1.0 * df["emotion_sadness"].fillna(0) +
-        0.5 * df["emotion_anger"].fillna(0)
-    ).div(2.5).round(4)
+    eps = 1e-8
+    na = sum(df[f"emotion_{e}"].fillna(0) for e in NAS_NEGATIVE)
+    pa = sum(df[f"emotion_{e}"].fillna(0) for e in NAS_POSITIVE)
+    df["nas_score"] = (na / (na + pa + eps)).round(4)
 
-    df["distress_level"] = pd.cut(
-        df["distress_score"],
-        bins=[0, 0.2, 0.4, 0.6, 1.01],
-        labels=["low", "moderate", "high", "severe"],
-        include_lowest=True
+    df["nas_level"] = pd.qcut(
+        df["nas_score"],
+        q=[0, 0.33, 0.66, 1.0],
+        labels=["low", "moderate", "high"],
+        duplicates="drop"
     )
 
-    log.info(f"Mean distress score: {df['distress_score'].mean():.3f}")
-    log.info("Distress level distribution:")
-    log.info(df["distress_level"].value_counts().sort_index().to_string())
+    log.info(f"Mean NAS: {df['nas_score'].mean():.3f}")
+    log.info("NAS level distribution:")
+    log.info(df["nas_level"].value_counts().sort_index().to_string())
     log.info("Dominant emotion distribution:")
     log.info(df["emotion_dominant"].value_counts().to_string())
     return df
@@ -269,7 +277,7 @@ def extract_emotions(df: pd.DataFrame, skip_bert: bool = False) -> pd.DataFrame:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Emotion extraction — NRC CSV + go-emotions BERT + distress")
+    parser = argparse.ArgumentParser(description="Emotion extraction — NRC CSV + go-emotions BERT + NAS (PANAS-based)")
     parser.add_argument("--input",   type=Path, default=Path("data/processed/reddit_sentiment.csv"))
     parser.add_argument("--output",  type=Path, default=Path("data/processed/reddit_emotions.csv"))
     parser.add_argument("--sample",  type=int,  default=None)
