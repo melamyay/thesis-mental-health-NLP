@@ -194,18 +194,20 @@ Visualization
  
 ## Key Results
  
-| Indicator | Value |
-|---|---|
-| Corpus size | 10,412 posts |
-| Negative sentiment | 37.5% |
-| Mean score_cont EN | -0.25 |
-| Mean score_cont FR | -0.12 |
+| Indicator | Value                |
+|---|----------------------|
+| Corpus size | 10,412 posts         |
+| Negative sentiment | 37.5%                |
+| Mean score_cont EN | -0.117               |
+| Mean score_cont FR | -0.088               |
 | Dominant emotion | Anticipation (32.8%) |
-| Mean distress score | 0.068 |
-| Moderate distress posts | 743 (8.1%) |
-| Topics identified | 12 |
-| Peak distress period | Rentree EN (0.107) |
- 
+| Mean NAS | 0.339                |
+| Posts — high NAS | 3,203 (34.7%)        |
+| Topics identified | 14                   |
+| Peak NAS period | Rentree EN (0.481)   |
+| Collection period | August 2025 → May 2026 |
+
+
 ---
 
 ## Data Sources
