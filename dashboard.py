@@ -69,18 +69,33 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    background-color: #13131F;
-    color: #E2E8F0;
+/* Force dark mode everywhere */
+:root { color-scheme: dark !important; }
+
+html, body, [class*="css"], [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+    font-family: 'DM Sans', sans-serif !important;
+    background-color: #13131F !important;
+    color: #E2E8F0 !important;
 }
+
+[data-testid="stAppViewContainer"] > .main { background-color: #13131F !important; }
+[data-testid="stHeader"] { background-color: #13131F !important; }
+.stSelectbox > div > div, .stMultiSelect > div > div,
+.stTextInput > div > div, .stNumberInput > div > div {
+    background-color: #1E1E2E !important; color: #E2E8F0 !important; border-color: #2D2D44 !important;
+}
+.stRadio > label, .stCheckbox > label, label { color: #E2E8F0 !important; }
+.stMarkdown, .stText, p { color: #E2E8F0 !important; }
+[data-baseweb="select"] { background-color: #1E1E2E !important; }
+[data-baseweb="popover"] { background-color: #1E1E2E !important; }
+[data-testid="baseButton-headerNoPadding"] { display: none !important; }
 
 .main { background-color: #13131F; }
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
     border-right: 1px solid #2D2D44;
 }
 [data-testid="stSidebar"] .stRadio > label { color: #E2E8F0 !important; }
@@ -253,9 +268,12 @@ def load_data():
         emotion_dom = np.random.choice(emotions,n,
             p=[0.094,0.372,0.0003,0.032,0.040,0.136,0.133,0.200])
 
-        distress = np.abs(np.random.exponential(0.068, n)).clip(0,0.45)
-        distress_level = pd.cut(distress, bins=[-0.001,0.1,0.2,0.3,1.0],
-                                labels=["low","moderate","high","severe"])
+        nas_sim = np.random.beta(1.2, 2.5, n)
+        nas_level_sim = pd.cut(nas_sim,
+                               bins=[-0.001,
+                                     np.percentile(nas_sim, 33.3),
+                                     np.percentile(nas_sim, 66.6), 1.0],
+                               labels=["low","moderate","high"])
 
         days_of_week = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"]
         dayofweek = np.random.choice(days_of_week, n,
@@ -277,8 +295,8 @@ def load_data():
             "sentiment_label": sentiment_dist,
             "score_cont": score_cont,
             "emotion_dominant": emotion_dom,
-            "distress_score": distress,
-            "distress_level": distress_level,
+            "nas_score": nas_sim,
+            "nas_level": nas_level_sim,
             "text_clean": np.random.choice(texts_sample, n),
         })
 
@@ -328,10 +346,13 @@ with st.sidebar:
     st.markdown("""
     <div style='text-align:center; padding: 1rem 0 0.5rem;'>
         <div style='font-size:2.2rem;'>🧠</div>
-        <div style='font-family:Space Mono,monospace; font-size:0.85rem; color:#6C63FF; font-weight:700;'>
+        <div style='font-family:Space Mono,monospace; font-size:0.78rem; color:#6C63FF; font-weight:700; line-height:1.35;'>
             FROM TEXT TO GRAPH
         </div>
-        <div style='font-size:0.72rem; color:#64748B; margin-top:0.2rem;'>
+        <div style='font-size:0.65rem; color:#94A3B8; margin-top:0.35rem; line-height:1.5; padding:0 0.3rem;'>
+            A Reproducible NLP Pipeline for the Longitudinal Analysis of Student Mental Health on Reddit
+        </div>
+        <div style='font-size:0.65rem; color:#64748B; margin-top:0.3rem;'>
             M2 DSS — ILIS UFR3S Lille — 2026
         </div>
     </div>
@@ -365,14 +386,14 @@ with st.sidebar:
 
     if "lang" in df_raw.columns:
         langs_all = [l for l in df_raw["lang"].unique() if l in ["en","fr"]]
-        selected_langs = st.multiselect("Langues", options=langs_all, default=langs_all)
     else:
-        selected_langs = ["en","fr"]
+        langs_all = ["en","fr"]
+    selected_langs = langs_all  # Pas de filtre langue — toutes les langues affichées
 
     st.markdown("<hr style='border-color:#2D2D44;'>", unsafe_allow_html=True)
     st.markdown("""
     <div style='font-size:0.7rem; color:#475569; text-align:center; line-height:1.6;'>
-        Corpus : août 2025 → mars 2026<br>
+        Corpus : août 2025 → mai 2026<br>
         10 412 posts · 6 subreddits<br>
         EN 79.5% · FR 18.6%
     </div>
@@ -426,7 +447,7 @@ def insight(text, kind=""):
 if page == "📊  Vue d'ensemble":
     st.markdown("<div class='section-title'>Corpus Reddit</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-title'>Vue d'ensemble du corpus</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Données collectées sur 6 subreddits · Août 2025 → Mars 2026</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Données collectées sur 6 subreddits · Août 2025 → Mai 2026</div>", unsafe_allow_html=True)
 
     # ── KPIs ──
     n_posts    = len(df)
@@ -526,8 +547,7 @@ if page == "📊  Vue d'ensemble":
             month_counts, x="mois", y="count", color="lang",
             color_discrete_map={"en":"#6C63FF","fr":"#2EC4B6","other":"#475569"},
             barmode="stack",
-            category_orders={"mois":["Jan","Fév","Mar","Avr","Mai","Juin",
-                                     "Juil","Août","Sep","Oct","Nov","Déc"]},
+            category_orders={"mois":["Août","Sep","Oct","Nov","Déc","Jan","Fév","Mar","Avr","Mai","Juin","Juil"]},
             labels={"count":"Nombre de posts","mois":"","lang":"Langue"},
         )
         fig3.update_traces(marker_line_width=0)
@@ -542,6 +562,109 @@ if page == "📊  Vue d'ensemble":
     insight("🌍 <b>79.5% des posts en anglais</b>, malgré l'inclusion de subreddits francophones.", "success") +
     insight("🔎 <b>2 batches de scraping</b> fusionnés, 806 doublons supprimés par déduplication sur <code>id_post</code>.") +
     "</div>", unsafe_allow_html=True)
+
+    # ── Explorateur de posts ──
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Exploration du corpus</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='font-size:1.3rem;'>Posts exemples</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Parcourez des posts réels filtrés par émotion dominante et niveau NAS</div>", unsafe_allow_html=True)
+
+    df_posts = None
+    posts_base = Path("data/processed")
+    emo_path = posts_base / "reddit_emotions.csv"
+    if emo_path.exists():
+        df_posts = pd.read_csv(emo_path)
+    elif Path("reddit_emotions.csv").exists():
+        df_posts = pd.read_csv("reddit_emotions.csv")
+
+    if df_posts is not None:
+        df_posts = df_posts[
+            (~df_posts["is_too_short"]) &
+            (df_posts["texte_clean"].notna()) &
+            (df_posts["texte_clean"].str.len() > 20) &
+            (df_posts["nas_score"].notna()) &
+            (df_posts["emotion_dominant"].notna())
+        ].copy()
+
+        col_f1, col_f2, col_f3 = st.columns([1.2, 1.2, 0.8])
+        with col_f1:
+            emotions_available = sorted(df_posts["emotion_dominant"].dropna().unique().tolist())
+            selected_emotion = st.selectbox("🎭 Émotion dominante", ["Toutes"] + emotions_available, key="explorer_emotion")
+        with col_f2:
+            nas_labels = {"low": "🟢 Low", "moderate": "🟡 Moderate", "high": "🔴 High"}
+            selected_nas = st.selectbox("📊 Niveau NAS", ["Tous"] + list(nas_labels.values()), key="explorer_nas")
+        with col_f3:
+            n_display = st.slider("Nb posts", min_value=3, max_value=15, value=5, key="explorer_n")
+
+        df_filtered = df_posts.copy()
+        if selected_emotion != "Toutes":
+            df_filtered = df_filtered[df_filtered["emotion_dominant"] == selected_emotion]
+        if selected_nas != "Tous":
+            nas_reverse = {v: k for k, v in nas_labels.items()}
+            df_filtered = df_filtered[df_filtered["nas_level"] == nas_reverse[selected_nas]]
+
+        if len(df_filtered) == 0:
+            st.markdown("<div style='background:rgba(108,99,255,0.08); border:1px dashed #6C63FF; border-radius:12px; padding:1.5rem; text-align:center; color:#94A3B8;'>Aucun post ne correspond à ces filtres.</div>", unsafe_allow_html=True)
+        else:
+            sample = df_filtered.sample(n=min(n_display, len(df_filtered)), random_state=42)
+            st.markdown(f"<div style='font-size:0.78rem; color:#64748B; margin-bottom:0.8rem;'>{len(df_filtered):,} posts correspondent · affichage de {len(sample)}</div>", unsafe_allow_html=True)
+
+            for _, row in sample.iterrows():
+                emo_color = EMOTION_COLORS.get(row["emotion_dominant"], "#6C63FF")
+                nas_color = {"low":"#2EC4B6","moderate":"#F4A261","high":"#E63946"}.get(str(row.get("nas_level","")).lower(), "#94A3B8")
+                sentiment_color = {"negative":"#E63946","neutral":"#94A3B8","positive":"#2EC4B6"}.get(str(row.get("sentiment_label","")).lower(), "#94A3B8")
+                forum_val = str(row.get("forum",""))
+                if not forum_val.startswith("r/"): forum_val = f"r/{forum_val}"
+                langue_val = str(row.get("langue","")).upper()
+                nas_val = float(row.get("nas_score", 0))
+                emo_val = str(row.get("emotion_dominant","")).capitalize()
+                sent_val = str(row.get("sentiment_label","")).capitalize()
+                titre_val = str(row.get("titre","")) if pd.notna(row.get("titre")) else ""
+                texte_val = str(row.get("texte_clean",""))
+                extrait = texte_val[:280] + "…" if len(texte_val) > 280 else texte_val
+                st.markdown(f"""
+                <div style='background:linear-gradient(135deg,#1E1E2E,#252540); border:1px solid #2D2D44; border-radius:14px; padding:1rem 1.2rem; margin-bottom:0.7rem; border-left:3px solid {emo_color};'>
+                    <div style='display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.55rem; align-items:center;'>
+                        <span style='font-family:Space Mono,monospace; font-size:0.72rem; color:#6C63FF; background:rgba(108,99,255,0.12); border:1px solid rgba(108,99,255,0.3); border-radius:6px; padding:2px 8px;'>{forum_val}</span>
+                        <span style='font-size:0.72rem; color:#64748B; background:#1a1a2e; border-radius:6px; padding:2px 8px;'>{langue_val}</span>
+                        <span style='font-size:0.72rem; color:{emo_color}; background:rgba(0,0,0,0.2); border:1px solid {emo_color}40; border-radius:6px; padding:2px 8px;'>🎭 {emo_val}</span>
+                        <span style='font-size:0.72rem; color:{nas_color}; background:rgba(0,0,0,0.2); border:1px solid {nas_color}40; border-radius:6px; padding:2px 8px;'>NAS {nas_val:.3f}</span>
+                        <span style='font-size:0.72rem; color:{sentiment_color}; background:rgba(0,0,0,0.2); border:1px solid {sentiment_color}40; border-radius:6px; padding:2px 8px;'>{sent_val}</span>
+                    </div>
+                    {f"<div style='font-size:0.85rem; font-weight:600; color:#E2E8F0; margin-bottom:0.35rem;'>{titre_val}</div>" if titre_val else ""}
+                    <div style='font-size:0.82rem; color:#94A3B8; line-height:1.55;'>{extrait}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            if st.button("🔀 Nouveaux exemples", key="resample_btn"):
+                st.rerun()
+    else:
+        fallback_posts = [
+            {"forum":"CollegeRant","langue":"EN","emotion_dominant":"anger","nas_score":0.9739,"nas_level":"high","sentiment_label":"negative","titre":"Frustration in the dorm","texte_clean":"Everyone in this dorm cannot stand you and wishes you the worst. You are the rudest most inconsiderate person imaginable..."},
+            {"forum":"CollegeRant","langue":"EN","emotion_dominant":"sadness","nas_score":0.9727,"nas_level":"high","sentiment_label":"negative","titre":"Suicidal ideation & academic pressure","texte_clean":"I have already been suicidal for more than four years and it has become way too overwhelming for somebody with severe AD..."},
+            {"forum":"csMajors","langue":"EN","emotion_dominant":"sadness","nas_score":0.9727,"nas_level":"high","sentiment_label":"negative","titre":"Feeling lost as a senior","texte_clean":"I am feeling lost as a senior in college and compsci major. Nothing feels like it's going the way I planned..."},
+            {"forum":"Students","langue":"EN","emotion_dominant":"anticipation","nas_score":0.220,"nas_level":"moderate","sentiment_label":"neutral","titre":"Preparing for internship interviews","texte_clean":"I have three interviews lined up this week and I genuinely don't know if I'm ready..."},
+            {"forum":"etudiants","langue":"FR","emotion_dominant":"trust","nas_score":0.105,"nas_level":"low","sentiment_label":"neutral","titre":"Conseils pour trouver un stage","texte_clean":"Bonjour, je cherche des conseils pour trouver un stage en data science..."},
+        ]
+        st.markdown("<div style='background:rgba(244,162,97,0.08); border:1px solid rgba(244,162,97,0.3); border-radius:10px; padding:0.6rem 1rem; margin-bottom:1rem; font-size:0.78rem; color:#F4A261;'>⚠️ Mode démo — données simulées. Placez <code>reddit_emotions.csv</code> dans <code>data/processed/</code> pour afficher les vrais posts.</div>", unsafe_allow_html=True)
+        for post in fallback_posts:
+            emo_color = EMOTION_COLORS.get(post["emotion_dominant"], "#6C63FF")
+            nas_color = {"low":"#2EC4B6","moderate":"#F4A261","high":"#E63946"}.get(post["nas_level"],"#94A3B8")
+            sentiment_color = {"negative":"#E63946","neutral":"#94A3B8","positive":"#2EC4B6"}.get(post["sentiment_label"],"#94A3B8")
+            forum_val = post["forum"] if post["forum"].startswith("r/") else f"r/{post['forum']}"
+            st.markdown(f"""
+            <div style='background:linear-gradient(135deg,#1E1E2E,#252540); border:1px solid #2D2D44; border-radius:14px; padding:1rem 1.2rem; margin-bottom:0.7rem; border-left:3px solid {emo_color};'>
+                <div style='display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.55rem; align-items:center;'>
+                    <span style='font-family:Space Mono,monospace; font-size:0.72rem; color:#6C63FF; background:rgba(108,99,255,0.12); border:1px solid rgba(108,99,255,0.3); border-radius:6px; padding:2px 8px;'>{forum_val}</span>
+                    <span style='font-size:0.72rem; color:#64748B; background:#1a1a2e; border-radius:6px; padding:2px 8px;'>{post["langue"]}</span>
+                    <span style='font-size:0.72rem; color:{emo_color}; background:rgba(0,0,0,0.2); border:1px solid {emo_color}40; border-radius:6px; padding:2px 8px;'>🎭 {post["emotion_dominant"].capitalize()}</span>
+                    <span style='font-size:0.72rem; color:{nas_color}; background:rgba(0,0,0,0.2); border:1px solid {nas_color}40; border-radius:6px; padding:2px 8px;'>NAS {post["nas_score"]:.3f}</span>
+                    <span style='font-size:0.72rem; color:{sentiment_color}; background:rgba(0,0,0,0.2); border:1px solid {sentiment_color}40; border-radius:6px; padding:2px 8px;'>{post["sentiment_label"].capitalize()}</span>
+                </div>
+                <div style='font-size:0.85rem; font-weight:600; color:#E2E8F0; margin-bottom:0.35rem;'>{post["titre"]}</div>
+                <div style='font-size:0.82rem; color:#94A3B8; line-height:1.55;'>{post["texte_clean"]}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
@@ -560,11 +683,11 @@ elif page == "💬  Sentiment":
     else:
         neg, neu, pos = 37.5, 41.0, 21.5
 
-    score_mean = df["score_cont"].mean() if "score_cont" in df.columns else -0.18
+    score_mean = df["score_cont"].mean() if "score_cont" in df.columns else -0.111
     score_en = df.loc[df["lang"] == "en", "score_cont"].mean() if (
-                "score_cont" in df.columns and "lang" in df.columns) else -0.25
+                "score_cont" in df.columns and "lang" in df.columns) else -0.117
     score_fr = df.loc[df["lang"] == "fr", "score_cont"].mean() if (
-                "score_cont" in df.columns and "lang" in df.columns) else -0.12
+                "score_cont" in df.columns and "lang" in df.columns) else -0.088
 
     cols = st.columns(5)
     for col, (v,l,s) in zip(cols, [
@@ -649,7 +772,7 @@ elif page == "💬  Sentiment":
             x="mois", y="score_cont", color="lang",
             color_discrete_map={"en":"#6C63FF","fr":"#2EC4B6"},
             markers=True,
-            category_orders={"mois":["Jan","Fév","Mar","Avr","Mai","Juin","Août","Sep","Oct","Nov","Déc"]},
+            category_orders={"mois":["Août","Sep","Oct","Nov","Déc","Jan","Fév","Mar","Avr","Mai"]},
         )
         fig4.add_hline(y=0, line_dash="dot", line_color="#94A3B8")
         fig4.update_layout(yaxis_title="Score moyen", xaxis_title="")
@@ -659,7 +782,7 @@ elif page == "💬  Sentiment":
     <div style='display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; margin-top:0.5rem;'>
     """ +
     insight("📉 <b>37.5% des posts sont négatifs</b> — le corpus reflète clairement un contexte de détresse étudiante.", "danger") +
-    insight("🇬🇧 <b>EN plus négatif (−0.25)</b> que FR (−0.12), probablement dû aux subreddits CollegeRant et csMajors.", "warning") +
+    insight("🇬🇧 <b>EN plus négatif (−0.117)</b> que FR (−0.088), probablement dû aux subreddits CollegeRant et csMajors.", "warning") +
     insight("📅 Score plus négatif <b>en août et en période d'examens</b>.", "warning") +
     insight("🔬 Score continu [-1,1] combinant scores positif, négatif et neutre des modèles BERT.", "success") +
     "</div>", unsafe_allow_html=True)
@@ -763,19 +886,19 @@ elif page == "🎭  Émotions":
 
 
 # ─────────────────────────────────────────────
-# PAGE 4 — DISTRESS
+# PAGE 4 — NAS
 # ─────────────────────────────────────────────
 elif page == "🌡️  Distress":
     st.markdown("<div class='section-title'>Analyse NLP</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-title'>Indice de détresse psychologique</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Distress = (fear + sadness + 0.5×anger) / 2.5 → [0,1] · 4 niveaux : low / moderate / high / severe</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Negative Affect Score (NAS)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>NAS = NA / (NA + PA + ε) · Fondé sur le modèle bidimensionnel PANAS · 3 niveaux par terciles empiriques</div>", unsafe_allow_html=True)
 
     cols = st.columns(4)
     for col, (v,l,s) in zip(cols, [
-        ("0.068","Score distress moyen","corpus complet"),
-        ("8 490","Posts low","< 0.10"),
-        ("743","Posts moderate","0.10–0.20"),
-        ("0","Posts high/severe","> 0.20"),
+        ("0.339","NAS moyen","corpus complet"),
+        ("3 065","Posts low","1er tercile"),
+        ("2 965","Posts moderate","2e tercile"),
+        ("3 203","Posts high","3e tercile — 34.7%"),
     ]):
         col.markdown(metric_card(v,l,s), unsafe_allow_html=True)
 
@@ -784,95 +907,94 @@ elif page == "🌡️  Distress":
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("**Distribution du distress score**")
-        if "distress_score" in df.columns:
-            dist_data = df["distress_score"].dropna()
+        st.markdown("**Distribution du NAS**")
+        if "nas_score" in df.columns:
+            nas_data = df["nas_score"].dropna()
         else:
-            dist_data = np.abs(np.random.exponential(0.068, 9233)).clip(0,0.45)
+            nas_data = np.random.beta(1.2, 2.5, 9233)
         fig = go.Figure()
         fig.add_trace(go.Histogram(
-            x=dist_data, nbinsx=50, name="Distress score",
+            x=nas_data, nbinsx=50, name="NAS",
             marker_color="#E63946", opacity=0.8,
         ))
-        mean_val = float(np.mean(dist_data))
+        mean_val = float(np.mean(nas_data))
         fig.add_vline(x=mean_val, line_dash="dash", line_color="#F4A261",
                       annotation_text=f"Moy. {mean_val:.3f}",
                       annotation_font_color="#F4A261")
-        fig.add_vline(x=0.10, line_dash="dot", line_color="#94A3B8",
-                      annotation_text="seuil moderate",
-                      annotation_font_color="#94A3B8",
-                      annotation_position="top right")
-        fig.update_layout(xaxis_title="Distress score [0, 1]", yaxis_title="Nb posts", showlegend=False)
+        fig.update_layout(xaxis_title="NAS [0, 1]", yaxis_title="Nb posts", showlegend=False)
         st.plotly_chart(styled_plotly(fig, 300), use_container_width=True)
 
     with col2:
-        st.markdown("**Niveaux de détresse**")
-        level_counts = {"low":8490,"moderate":743,"high":0,"severe":0}
+        st.markdown("**Niveaux NAS (terciles empiriques)**")
+        if "nas_level" in df.columns:
+            level_counts = df["nas_level"].value_counts().reindex(["low","moderate","high"], fill_value=0).to_dict()
+        else:
+            level_counts = {"low":3065,"moderate":2965,"high":3203}
         fig2 = px.bar(
             x=list(level_counts.keys()),
             y=list(level_counts.values()),
             color=list(level_counts.keys()),
-            color_discrete_map={"low":"#2EC4B6","moderate":"#F4A261","high":"#E63946","severe":"#9B2335"},
+            color_discrete_map={"low":"#2EC4B6","moderate":"#F4A261","high":"#E63946"},
             text=list(level_counts.values()),
         )
         fig2.update_traces(textposition="outside", textfont_color="#CBD5E1", marker_line_width=0)
         fig2.update_layout(showlegend=False, xaxis_title="Niveau", yaxis_title="Nb posts")
         st.plotly_chart(styled_plotly(fig2, 300), use_container_width=True)
 
-    # Distress par saison
-    st.markdown("**Distress moyen par saison académique et langue**")
+    # NAS par saison
+    st.markdown("**NAS moyen par saison académique et langue**")
     saison_data = {
-        "saison":   ["rentree","automne","hiver","hiver","printemps","printemps","examens","examens","ete","ete"],
-        "langue":   ["en","en","en","fr","en","fr","en","fr","en","fr"],
-        "distress": [0.107,0.094,0.076,0.037,0.072,0.038,0.074,0.040,0.074,0.037],
+        "saison":  ["rentree","automne","hiver","hiver","printemps","printemps","examens","examens"],
+        "langue":  ["en","en","en","fr","en","fr","en","fr"],
+        "nas":     [0.481,0.430,0.366,0.269,0.341,0.274,0.348,0.279],
     }
     df_saison = pd.DataFrame(saison_data)
     fig3 = px.bar(
-        df_saison, x="saison", y="distress", color="langue", barmode="group",
+        df_saison, x="saison", y="nas", color="langue", barmode="group",
         color_discrete_map={"en":"#6C63FF","fr":"#2EC4B6"},
-        text="distress",
-        category_orders={"saison":["rentree","automne","hiver","printemps","examens","ete"]},
-        labels={"distress":"Distress moyen","saison":"Saison académique","langue":"Langue"},
+        text="nas",
+        category_orders={"saison":["rentree","automne","hiver","printemps","examens"]},
+        labels={"nas":"NAS moyen","saison":"Saison académique","langue":"Langue"},
     )
     fig3.update_traces(texttemplate="%{text:.3f}", textposition="outside",
                        textfont_color="#CBD5E1", marker_line_width=0)
-    fig3.update_layout(yaxis_title="Distress score moyen", xaxis_title="")
+    fig3.update_layout(yaxis_title="NAS moyen", xaxis_title="")
     st.plotly_chart(styled_plotly(fig3, 300), use_container_width=True)
 
-    # Top distress posts
-    st.markdown("**Top 10 posts avec distress score le plus élevé**")
+    # Top NAS posts
+    st.markdown("**Top 10 posts — NAS le plus élevé (posts valides)**")
     top_posts = pd.DataFrame({
-        "Subreddit":  ["CollegeRant","CollegeRant","college","csMajors","Student",
-                       "Student","Students","CollegeRant","college","Student"],
+        "Subreddit":  ["csMajors","Students","CollegeRant","CollegeRant","csMajors",
+                       "CollegeRant","Student","CollegeRant","CollegeRant","college"],
         "Langue":     ["en"]*10,
-        "Distress":   [0.3884,0.3375,0.3333,0.3079,0.2939,0.2932,0.2922,0.2911,0.2859,0.2849],
+        "NAS":        [0.9778,0.9776,0.9739,0.9727,0.9727,0.9712,0.9710,0.9693,0.9676,0.9671],
         "Sentiment":  ["negative"]*10,
-        "Émotion":    ["sadness","sadness","fear","sadness","fear","sadness","sadness","sadness","fear","sadness"],
+        "Émotion":    ["anger","anger","anger","sadness","sadness","sadness","sadness","anger","anger","sadness"],
         "Extrait":    [
-            "I feel I am just paying college to be miserable lonely and depressed...",
-            "I lost my boyfriend and my best friend. I feel so lonely that it's killing me...",
-            "'Fear and hopelessness': study finds one in four professors leaving US south...",
-            "I am feeling lost as a senior in college and compsci major...",
-            "class 11th - severe anxiety and chances of failing...",
-            "International student struggling to finish final semester...",
-            "Suicide at IIIT Nagpur: Body of unknown Boy who jumped from building...",
-            "My boyfriend is supposed to come over tonight but I am just so exhausted...",
-            "Yesterday night was Halloweekend, at my campus there was a shooting...",
-            "Feeling Disconnected From the 'Chasing Girls' Culture...",
+            "The workforce does not need the next generation tbh. I cannot fathom bringing a new slave into this world when this gene...",
+            "Doing research and getting survey responses is actually hell",
+            "Everyone in this dorm cannot stand you and wishes you the worst. You are the rudest most inconsiderate person imaginable...",
+            "I have already been suicidal for more than four years and it has become way too overwhelming for somebody with severe AD...",
+            "I am feeling lost as a senior in college and compsci major",
+            "feel shame for my grade, and I am doing the worst in my class.",
+            'Feeling Disconnected From the "Chasing Girls" Culture',
+            "I am just frustrated i maybe talking nonsense or I may not make sense but i absolutely hate FSD subject out of all. And ...",
+            "So, I need help, my group assignment partners are not doing shit. They are not answering they are not doing anything the...",
+            "Anyone else tired of discussions, its Thursday, when they are usually due. And I am honestly procrastinating so bad.",
         ],
     })
     st.dataframe(
-        top_posts.style.background_gradient(subset=["Distress"], cmap="Reds"),
+        top_posts.style.background_gradient(subset=["NAS"], cmap="Reds"),
         use_container_width=True, height=320,
     )
 
     st.markdown("""
     <div style='display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; margin-top:0.5rem;'>
     """ +
-    insight("📌 <b>Rentrée EN (0.107)</b> est la saison la plus stressante — début d'année académique perçu comme anxiogène.", "danger") +
-    insight("🇫🇷 <b>FR systématiquement plus bas</b> — différences culturelles d'expression ou corpus FR moins orienté détresse.", "warning") +
-    insight("✅ <b>0 post high/severe</b> dans le corpus — le niveau de détresse reste modéré globalement.", "success") +
-    insight("📐 Formule : <code>distress = (fear + sadness + 0.5×anger) / 2.5</code> normalisée sur [0, 1].") +
+    insight("📌 <b>Rentrée EN (0.481)</b> est la saison au NAS le plus élevé — début d'année académique perçu comme anxiogène.", "danger") +
+    insight("🇫🇷 <b>FR systématiquement plus bas</b> — différences culturelles d'expression ou corpus FR moins orienté affect négatif.", "warning") +
+    insight("📊 <b>r/CollegeRant NAS = 0.645</b> — communauté de venting, affect négatif nettement dominant.", "danger") +
+    insight("📐 Formule : <code>NAS = NA / (NA + PA + ε)</code> · NA = fear + sadness + anger + disgust · PA = joy + trust + anticipation · Fondé sur PANAS [Watson et al., 1988].") +
     "</div>", unsafe_allow_html=True)
 
 
@@ -901,7 +1023,7 @@ elif page == "📈  Patterns temporels":
     df_monthly = pd.DataFrame(monthly_emotions).T.reset_index()
     df_monthly.columns = ["mois"] + list(df_monthly.columns[1:])
     df_melt = df_monthly.melt(id_vars="mois", var_name="emotion", value_name="score")
-    order = ["Jan","Fév","Mar","Avr","Mai","Août","Sep","Oct","Nov","Déc"]
+    order = ["Août","Sep","Oct","Nov","Déc","Jan","Fév","Mar","Avr","Mai"]
     df_melt["mois"] = pd.Categorical(df_melt["mois"], categories=order, ordered=True)
     df_melt = df_melt.sort_values("mois")
 
@@ -945,10 +1067,10 @@ elif page == "📈  Patterns temporels":
         st.plotly_chart(styled_plotly(fig3, 300), use_container_width=True)
 
     # Distress mensuel
-    st.markdown("**Distress moyen par mois**")
-    dist_en = [0.078,0.074,0.065,0.075,0.073,0.094,0.102,0.083,0.094,0.098,0.100]
-    dist_fr = [0.012,0.038,0.039,0.035,0.039,None,None,None,None,None,None]
-    mois_label = ["Jan","Fév","Mar","Avr","Mai","Août","Sep","Oct","Nov","Déc","Déc"]
+    st.markdown("**NAS moyen par mois**")
+    dist_en = [0.094,0.102,0.083,0.094,0.098,0.078,0.074,0.065,0.075,0.073]
+    dist_fr = [None,None,None,None,None,0.012,0.038,0.039,0.035,0.039]
+    mois_label = ["Août","Sep","Oct","Nov","Déc","Jan","Fév","Mar","Avr","Mai"]
 
     fig4 = go.Figure()
     fig4.add_trace(go.Scatter(x=mois_label[:len(dist_en)], y=dist_en, name="EN",
@@ -958,7 +1080,7 @@ elif page == "📈  Patterns temporels":
     fig4.add_trace(go.Scatter(x=mois_label[:len(fr_vals)], y=fr_vals, name="FR",
                               mode="lines+markers", line_color="#2EC4B6", line_width=2,
                               fill="tozeroy", fillcolor="rgba(46,196,182,0.1)"))
-    fig4.update_layout(xaxis_title="", yaxis_title="Distress score moyen")
+    fig4.update_layout(xaxis_title="", yaxis_title="NAS moyen")
     st.plotly_chart(styled_plotly(fig4, 280), use_container_width=True)
 
     st.markdown("""
@@ -966,7 +1088,7 @@ elif page == "📈  Patterns temporels":
     """ +
     insight("📅 <b>Anticipation domine sur toute l'année</b>, avec un pic en mai (examens).") +
     insight("📆 <b>Jeudi = pic de volume</b> (1 481 posts) ; samedi = creux (1 060).", "warning") +
-    insight("🌡️ <b>Distress EN culminant en septembre–décembre</b>, corrélé aux périodes d'évaluation.", "danger") +
+    insight("🌡️ <b>NAS EN culminant en septembre–décembre</b>, corrélé aux périodes d'évaluation.", "danger") +
     "</div>", unsafe_allow_html=True)
 
 
@@ -976,15 +1098,15 @@ elif page == "📈  Patterns temporels":
 elif page == "🕸️  Graphes & Topics":
     st.markdown("<div class='section-title'>Visualisation</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-title'>Graphes & Topics</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Co-occurrences NetworkX/Pyvis · BERTopic multilingue · 12 topics · 5 040 posts</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Co-occurrences NetworkX/Pyvis · BERTopic multilingue · 14 topics · 9 233 posts valides</div>", unsafe_allow_html=True)
 
     # Stats topics
     cols = st.columns(4)
     for col, (v,l,s) in zip(cols, [
-        ("12","Topics identifiés","BERTopic multilingue"),
-        ("5 040","Posts topicisés","EN + FR, ≥5 tokens"),
+        ("14","Topics identifiés","T0–T13, outliers réassignés"),
+        ("3 861","Posts topicisés","41.8% du corpus valide"),
         ("paraphrase-multilingual","Modèle embeddings","MiniLM-L12-v2"),
-        ("UMAP + HDBSCAN","Algorithme clustering"," "),
+        ("UMAP + HDBSCAN","Algorithme clustering","leaf method"),
     ]):
         col.markdown(metric_card(v,l,s), unsafe_allow_html=True)
 
@@ -1028,53 +1150,74 @@ elif page == "🕸️  Graphes & Topics":
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Distribution topics (simulée)
-    st.markdown("**Distribution des topics (BERTopic — 5 040 posts)**")
+    # Distribution topics — vraies données Annexe III
+    st.markdown("**Distribution des topics (BERTopic — 3 861 posts assignés)**")
     topics_data = {
-        "Topic 0 — Academic stress": 623,
-        "Topic 1 — Mental health": 514,
-        "Topic 2 — Career anxiety": 489,
-        "Topic 3 — Social isolation": 421,
-        "Topic 4 — Exams & grades": 398,
-        "Topic 5 — Housing & finance": 356,
-        "Topic 6 — Relationships": 310,
-        "Topic 7 — Future uncertainty": 287,
-        "Topic 8 — Depression": 265,
-        "Topic 9 — Burnout": 241,
-        "Topic 10 — Support seeking": 198,
-        "Topic 11 — Identity": 174,
-        "Outliers (-1)": 764,
+        "T0 — General Academic Life & Wellbeing": {"count": 1402, "nas": 0.484, "pct_high": 57.8, "lang": "EN"},
+        "T1 — Internship & Career Recruitment":   {"count": 472,  "nas": 0.200, "pct_high": 16.3, "lang": "EN"},
+        "T2 — Research Surveys":                  {"count": 440,  "nas": 0.234, "pct_high": 27.5, "lang": "EN/FR"},
+        "T3 — French Student Life (General)":     {"count": 388,  "nas": 0.250, "pct_high": 28.1, "lang": "FR"},
+        "T4 — French Academic Orientation":       {"count": 295,  "nas": 0.299, "pct_high": 38.6, "lang": "FR"},
+        "T5 — International Students in France":  {"count": 220,  "nas": 0.209, "pct_high": 22.3, "lang": "FR"},
+        "T6 — Examinations & Academic Stress":    {"count": 146,  "nas": 0.425, "pct_high": 50.0, "lang": "EN"},
+        "T7 — Sleep, Fatigue & Mental Load":      {"count": 122,  "nas": 0.340, "pct_high": 36.1, "lang": "EN"},
+        "T8 — Student Housing (CROUS)":           {"count": 88,   "nas": 0.239, "pct_high": 25.0, "lang": "FR"},
+        "T10 — Sciences & Mathematics (FR)":      {"count": 79,   "nas": 0.294, "pct_high": 31.6, "lang": "FR"},
+        "T9 — Business School & Competitions":    {"count": 75,   "nas": 0.133, "pct_high": 6.7,  "lang": "EN"},
+        "T11 — Student Discounts & Finances":     {"count": 52,   "nas": 0.099, "pct_high": 1.9,  "lang": "EN"},
+        "T12 — Academic Resources & Textbooks":   {"count": 46,   "nas": 0.207, "pct_high": 19.6, "lang": "EN"},
+        "T13 — Summer Internship Housing":        {"count": 36,   "nas": 0.092, "pct_high": 0.0,  "lang": "EN"},
     }
-    df_topics_viz = pd.DataFrame({
-        "topic": list(topics_data.keys()),
-        "count": list(topics_data.values()),
-    }).sort_values("count", ascending=False)
+    df_topics_viz = pd.DataFrame([
+        {"topic": k, "count": v["count"], "nas": v["nas"], "pct_high": v["pct_high"], "lang": v["lang"]}
+        for k, v in topics_data.items()
+    ]).sort_values("count", ascending=False)
 
     fig = px.bar(
         df_topics_viz, x="topic", y="count",
-        color="count",
+        color="nas",
         color_continuous_scale=["#1A535C","#6C63FF","#F4A261","#E63946"],
         text="count",
-        labels={"count":"Nb posts","topic":""},
+        labels={"count":"Nb posts","topic":"","nas":"NAS moyen"},
+        hover_data={"nas":":.3f","pct_high":":.1f","lang":True},
     )
     fig.update_traces(textposition="outside", textfont_color="#CBD5E1", marker_line_width=0)
-    fig.update_layout(showlegend=False, xaxis_tickangle=-35, coloraxis_showscale=False)
-    st.plotly_chart(styled_plotly(fig, 380), use_container_width=True)
+    fig.update_layout(showlegend=False, xaxis_tickangle=-35, coloraxis_showscale=True,
+                      coloraxis_colorbar=dict(title="NAS moyen", thickness=12, len=0.6))
+    st.plotly_chart(styled_plotly(fig, 400), use_container_width=True)
 
-    # Note technique
+    # NAS moyen par topic
+    st.markdown("**NAS moyen par topic (% high NAS)**")
+    df_nas_topic = df_topics_viz.sort_values("nas")
+    fig_nas = px.bar(
+        df_nas_topic, x="nas", y="topic", orientation="h",
+        color="nas",
+        color_continuous_scale=["#1A535C","#6C63FF","#F4A261","#E63946"],
+        text=df_nas_topic["nas"].apply(lambda x: f"{x:.3f}"),
+        labels={"nas":"NAS moyen","topic":""},
+    )
+    fig_nas.add_vline(x=0.4, line_dash="dash", line_color="#F4A261",
+                      annotation_text="Seuil high (0.4)", annotation_font_color="#F4A261")
+    fig_nas.update_traces(textposition="outside", textfont_color="#CBD5E1", marker_line_width=0)
+    fig_nas.update_layout(showlegend=False, coloraxis_showscale=False)
+    st.plotly_chart(styled_plotly(fig_nas, 420), use_container_width=True)
 
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
-        <div class='insight-box'>
-            🔗 <b>Graphes de co-occurrences :</b> nœuds = mots lemmatisés,
-            taille = fréquence, couleur = émotion dominante associée.
+        <div class='insight-box danger'>
+            🔥 <b>T0 (General Academic Life & Wellbeing)</b> : NAS = 0.484, 57.8% high — le topic le plus chargé émotionnellement.
+        </div>
+        <div class='insight-box warning'>
+            📝 <b>T6 (Examinations & Academic Stress)</b> : NAS = 0.425, 50% high — stress d'examen bien documenté.
         </div>
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("""
         <div class='insight-box success'>
-            📊 <b>Graphe bipartite topics ↔ mots :</b> relie chaque topic
-            à ses 10 mots-clés les plus représentatifs (TF-IDF BERTopic).
+            💶 <b>T11, T13</b> (Finances, Housing) : NAS ≈ 0.09 — topics fonctionnels, quasi sans affect négatif.
+        </div>
+        <div class='insight-box'>
+            🔗 <b>Graphes de co-occurrences :</b> nœuds = mots lemmatisés, taille = fréquence, couleur = émotion dominante.
         </div>
         """, unsafe_allow_html=True)
